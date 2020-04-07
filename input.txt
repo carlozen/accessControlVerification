@@ -1,0 +1,6 @@
+Teacher Student TA ;
+stefano alice bob ;
+<stefano,Teacher> <alice,TA> ;
+<Teacher,Student> <Teacher,TA> ;
+<Teacher,-Teacher&-TA,Student> <Teacher,-Student,TA> <Teacher,TA&-Student,Teacher> ;
+Student ;
