@@ -90,6 +90,7 @@ ur = ua_to_dict(ua)
 ca = rewrite_ca(ca)
 cr = rewrite_cr(cr)
 
+
 def get_next(before, ca):
     res = copy.deepcopy(before)
     for ca_rule in ca:
@@ -97,6 +98,8 @@ def get_next(before, ca):
             res = res + ca_rule["Rp"] + ca_rule["Rn"] + [ca_rule["ra"]]
     return res
 
+
+# ----------------------- BACKWARD SLICING ---------------------------
 
 s = []
 s.append([goal])
@@ -134,6 +137,12 @@ for user, rs in ur.items():
     ur[user] = copy.deepcopy(aux)
 
 
+# ----------------------- END BACKWARD SLICING ---------------------------
+
+
+# given a list of user-to-role assignments, returns all the possible revocable roles
+# in the following form: [(user_a, role_a), ..., (user_n, role_n)],
+# a rule admits to revoke role_a to user_a, ..., role_n to user_n
 def can_revoke_roles(ur_param):
     res = []
     ru = ru_from_ur(ur_param)
@@ -147,6 +156,7 @@ def can_revoke_roles(ur_param):
     return res
 
 
+# check if the list 'a' is included in list 'b'
 def is_included(a, b):
     for item in a:
         if item not in b:
@@ -155,6 +165,7 @@ def is_included(a, b):
     return True
 
 
+# check if lists 'a' and 'b' are disjoint
 def is_disjoint(a, b):
     for item in a:
         if item in b:
@@ -162,6 +173,9 @@ def is_disjoint(a, b):
     return True
 
 
+# given a list of user-to-role assignments, returns all the possible assignable roles
+# in the following form: [(user_a, role_a), ..., (user_n, role_n)],
+# a rule admits to assign role_a to user_a, ..., role_n to user_n
 def can_assign_roles(ur_param):
     res = []
 
@@ -176,13 +190,7 @@ def can_assign_roles(ur_param):
     return res
 
 
-def merge_two_dicts(x, y):
-    z = x.copy()   # start with x's keys and values
-    z.update(y)    # modifies z with y's keys and values & returns None
-    return z
-
-
-def is_reachable(ur_param, to_print, configurations):
+def is_reachable(ur_param, configurations, to_print):
     ur_copy = copy.deepcopy(ur_param)
     ru = ru_from_ur(ur_copy)
 
@@ -210,7 +218,7 @@ def is_reachable(ur_param, to_print, configurations):
             i += 1
 
         if ex:
-            val = is_reachable(ur_copy, False, configurations)
+            val = is_reachable(ur_copy, configurations, False)
             if val == 1:
                 return val
             else:
@@ -235,7 +243,7 @@ def is_reachable(ur_param, to_print, configurations):
             i += 1
 
         if ex:
-            val = is_reachable(ur_copy, False, configurations)
+            val = is_reachable(ur_copy, configurations, False)
 
             if val == 1:
                 return 1
@@ -248,7 +256,7 @@ def is_reachable(ur_param, to_print, configurations):
     return 0
 
 
-if is_reachable(ur, True, []) > 0:
+if is_reachable(ur, [], True) > 0:
     print(1)
 else:
     print(0)
