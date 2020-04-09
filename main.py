@@ -1,4 +1,5 @@
 import Tkinter, tkFileDialog
+import copy
 
 root = Tkinter.Tk()
 root.withdraw()
@@ -18,14 +19,6 @@ ca = partitioned_text[8].replace(" ;", "").replace("CA ", "").split(" ")
 goal = partitioned_text[10].replace(" ;", "").replace("Goal ", "").split(" ")[0]
 
 
-# roles = partitioned_text[0].replace(" ;", "").split(" ")
-# users = partitioned_text[1].replace(" ;", "").split(" ")
-# ua = partitioned_text[2].replace(" ;", "").split(" ")
-# cr = partitioned_text[3].replace(" ;", "").split(" ")
-# ca = partitioned_text[4].replace(" ;", "").split(" ")
-# goal = partitioned_text[5].replace(" ;", "").split(" ")[0]
-
-
 def ua_to_dict(ua):
     dict = {}
     for item in ua:
@@ -40,6 +33,8 @@ def ua_to_dict(ua):
 
 def get_ca_roles(a):
     ret = [[], []]
+    if a == "TRUE":
+        return ret
     a = a.split("&")
     for item in a:
         if item[0] != "-":
@@ -81,23 +76,22 @@ def rewrite_cr(cr):
     return arr
 
 
-def ru_from_ur(ur):
-    dict = {}
-    for user, roles in ur.items():
-        for role in roles:
-            if role not in dict:
-                dict[role] = []
-            dict[role] += [user]
-    return dict
+def ru_from_ur(ur_param):
+    d = {}
+    for u, rs in ur_param.items():
+        for r in rs:
+            if r not in d:
+                d[r] = []
+            d[r] += [u]
+    return d
 
 
 ur = ua_to_dict(ua)
 ca = rewrite_ca(ca)
 cr = rewrite_cr(cr)
 
-
 def get_next(before, ca):
-    res = before
+    res = copy.deepcopy(before)
     for ca_rule in ca:
         if ca_rule["rt"] in before:
             res = res + ca_rule["Rp"] + ca_rule["Rn"] + [ca_rule["ra"]]
@@ -118,104 +112,143 @@ aux = []
 for ca_rule in ca:
     if ca_rule["rt"] in s:
         aux.append(ca_rule)
-ca = aux
+ca = copy.deepcopy(aux)
 
 aux = []
 for cr_rule in cr:
     if cr_rule["rt"] in s:
         aux.append(cr_rule)
-cr = aux
+cr = copy.deepcopy(aux)
 
 aux = []
 for role in roles:
     if role in s:
         aux.append(role)
-roles = aux
+roles = copy.deepcopy(aux)
 
-for user, r in ur.items():
+for user, rs in ur.items():
     aux = []
-    for role in r:
+    for role in rs:
         if role in s:
             aux.append(role)
-    r = aux
+    ur[user] = copy.deepcopy(aux)
 
-def can_revoke_roles(cr, ur):
+
+def can_revoke_roles(ur_param):
     res = []
-    ru = ru_from_ur(ur)
+    ru = ru_from_ur(ur_param)
 
-    for cr_role in cr:
-        for user_a, roles_a in ur.items():
-            if cr_role["ra"] in roles_a and cr_role["rt"] in ru:
-                for user_t in ru[cr_role["rt"]]:
-                    res += [(user_t, cr_role["rt"])]
+    for cr_rule in cr:
+        for user_a, roles_a in ur_param.items():
+            if cr_rule["ra"] in roles_a and cr_rule["rt"] in ru:
+                for user_t in ru[cr_rule["rt"]]:
+                    res += [(user_t, cr_rule["rt"])]
 
     return res
 
 
-def can_assign_roles(ca, ur, users):
-    res = []
-    ru = ru_from_ur(ur)
+def is_included(a, b):
+    for item in a:
+        if item not in b:
+            return False
 
-    for ca_role in ca:
-        for user_a_ur, roles_a_ur in ur.items():
-            if ca_role["ra"] in roles_a_ur:
+    return True
+
+
+def is_disjoint(a, b):
+    for item in a:
+        if item in b:
+            return False
+    return True
+
+
+def can_assign_roles(ur_param):
+    res = []
+
+    for ca_rule in ca:
+        for user_a_ur, roles_a_ur in ur_param.items():
+            if ca_rule["ra"] in roles_a_ur:
                 for user_t in users:
-                    if not user_t in ur or (
-                            all(elem in ur[user_t] for elem in ca_role["Rp"]) and set(ur[user_t]).isdisjoint(
-                        ca_role["Rn"]) and ca_role["rt"] not in ur[user_t]):
-                        res += [(user_t, ca_role["rt"])]
+                    if user_t not in ur_param or (
+                            is_included(ca_rule["Rp"], ur_param[user_t]) and is_disjoint(
+                            ca_rule["Rn"], ur_param[user_t]) and ca_rule["rt"] not in ur_param[user_t]):
+                        res += [(user_t, ca_rule["rt"])]
     return res
+
 
 def merge_two_dicts(x, y):
     z = x.copy()   # start with x's keys and values
     z.update(y)    # modifies z with y's keys and values & returns None
     return z
 
-def is_reachable(goal, ca, ur, users, already_add, already_remove):
-    ru = ru_from_ur(ur)
+
+def is_reachable(ur_param, to_print, configurations):
+    ur_copy = copy.deepcopy(ur_param)
+    ru = ru_from_ur(ur_copy)
+
     if goal in ru and ru[goal]:
         return 1
 
-    can_ass_list = can_assign_roles(ca, ur, users)
+    can_ass_list = can_assign_roles(ur_copy)
+    i = 1
 
     for ass in can_ass_list:
-        if ass[0] not in already_add or ass[1] not in already_add[ass[0]]:
-            if ass[0] not in ur:
-                ur[ass[0]] = []
-            ur[ass[0]] += [ass[1]]
+        if ass[1] == goal:
+            return 1
 
-            if ass[0] not in already_add:
-                already_add[ass[0]] = []
-            already_add[ass[0]] += [ass[1]]
+        if ass[0] not in ur_copy:
+            ur_copy[ass[0]] = []
+        ur_copy[ass[0]] += [ass[1]]
 
-            val = is_reachable(goal, ca, ur, users, already_add, already_remove)
+        ex = True
+        for conf in configurations:
+            if conf == ur_copy:
+                ex = False
+
+        if to_print:
+            print(str(i)+" out of "+str(len(can_ass_list)))
+            i += 1
+
+        if ex:
+            val = is_reachable(ur_copy, False, configurations)
             if val == 1:
                 return val
+            else:
+                to_add = copy.deepcopy(ur_copy)
+                configurations += [to_add]
 
-            ur[ass[0]].remove(ass[1])
-            already_add[ass[0]].remove(ass[1])
+        ur_copy[ass[0]].remove(ass[1])
 
-    can_rev_list = can_revoke_roles(cr, ur)
+    i = 1
+    can_rev_list = can_revoke_roles(ur_copy)
+
     for rev in can_rev_list:
-        if rev[0] not in already_remove or rev[1] not in already_remove[rev[0]]:
-            ur[rev[0]].remove(rev[1])
+        ur_copy[rev[0]].remove(rev[1])
 
-            if rev[0] not in already_remove:
-                already_remove[rev[0]] = []
-            already_remove[rev[0]] += [rev[1]]
+        ex = True
+        for conf in configurations:
+            if conf == ur_copy:
+                ex = False
 
-            val = is_reachable(goal, ca, ur, users, already_add, already_remove)
+        if to_print:
+            print(str(i)+" out of "+str(len(can_rev_list)))
+            i += 1
+
+        if ex:
+            val = is_reachable(ur_copy, False, configurations)
 
             if val == 1:
                 return 1
+            else:
+                to_add = copy.deepcopy(ur_copy)
+                configurations += [to_add]
 
-            ur[rev[0]] += [rev[1]]
-            already_remove[rev[0]].remove(rev[1])
+        ur_copy[rev[0]] += [rev[1]]
 
     return 0
 
 
-if is_reachable(goal, ca, ur, users, {}, {}) > 0:
+if is_reachable(ur, True, []) > 0:
     print(1)
 else:
     print(0)
